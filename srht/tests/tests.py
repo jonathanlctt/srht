@@ -4,8 +4,8 @@ from scipy.sparse import issparse, csc_matrix, csr_matrix
 import torch
 from scipy.linalg import hadamard
 
-from srht import srht_sketch
-from evaluate.baselines import srht_slow
+from srht.srht import srht_sketch
+from srht.evaluate.baselines import srht_slow
 
 from time import time
 
@@ -77,7 +77,7 @@ def test_3(n=2048, d=128, sketch_size=512):
     print(f"Time with optimized implementation: {time()-start}")
 
     start = time()
-    sa_slow = srht_slow(a, indices_h, signs)
+    sa_slow = srht_slow(a, sketch_size, ind=indices_h, signs=signs)
     print(f"Time with O(n d log n) implementation: {time()-start}")
 
     assert np.allclose(sa, sa_slow), "sa and sa_slow differ"
