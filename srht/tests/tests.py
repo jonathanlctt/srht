@@ -5,7 +5,7 @@ import torch
 from scipy.linalg import hadamard
 
 from srht import srht_sketch
-from baselines import srht_slow
+from evaluate.baselines import srht_slow
 
 from time import time
 
