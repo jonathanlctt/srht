@@ -3,7 +3,7 @@ Subsampled Randomized Hadamard Transform
 
 - `O(n d log m)` implementation of the SRHT. 
 
-- This implementation does not require zero-padding.
+- This implementation does not apply zero-padding to the data matrix.
 - Compatible with `numpy.ndarray`, `torch.Tensor` and `scicy.sparse` arrays.
 
 Given a matrix `A` with size `n x d` and an embedding dimension (sketch size) `m`, transform the matrix A into `S x A` where 
