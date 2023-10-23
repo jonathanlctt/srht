@@ -7,10 +7,10 @@ import torch
 from time import time
 
 
-def srht_sketch(a, sketch_size, signs=None, indices_h=None):
+def srht_sketch(a, sketch_size, signs=None, indices_h=None, with_stack=False):
 
     sketcher = SRHTSketcher()
-    sketcher.sketch(a, sketch_size, signs=signs, indices_h=indices_h)
+    sketcher.sketch(a, sketch_size, signs=signs, indices_h=indices_h, with_stack=with_stack)
     return sketcher.sa
 
 
@@ -34,7 +34,7 @@ class SRHTSketcher:
 
         return a_srht
 
-    def sketch(self, a, sketch_size, signs=None, indices_h=None):
+    def sketch(self, a, sketch_size, signs=None, indices_h=None, with_stack=False):
 
         assert a.shape[0] >= a.shape[1], "left sketch! sample size must be greater than feature dimension - why would you want to embed your matrix?"
         assert a.shape[0] >= sketch_size, "left sketch! sketch size must be smaller than sample size - why would you want to embed your matrix?"
@@ -54,6 +54,7 @@ class SRHTSketcher:
         if indices_h is None:
             indices_h = self.rng.choice(n, sketch_size, replace=False)
 
+        indices_h = np.sort(indices_h)
         a_srht = self.apply_random_signs(a, signs)
 
         if issparse(a_srht):
@@ -67,9 +68,48 @@ class SRHTSketcher:
         else:
             indices = np.arange(sketch_size, dtype=np.int64)
 
-            self._sketch(indices_h, indices, a_srht, n_padded)
+            if with_stack:
+                self.dfs_stack(indices_h, indices, a_srht, n_padded)
+            else:
+                self._sketch(indices_h, indices, a_srht, n_padded)
 
             self.sa /= np.sqrt(sketch_size)
+
+    def dfs_stack(self, indh, ind, v, mid):
+        stack = []
+        stack.append((indh, ind, v, mid))
+        while len(stack):
+
+            indh, ind, v, mid = stack.pop()
+
+            n = v.shape[0]
+            mid_ = mid // 2
+
+            if n == 1:
+                self.sa[ind[0]] = v
+            else:
+                mid_idx_ = min(len(indh), np.searchsorted(indh, mid_, side='right'))
+                ih1 = indh[:mid_idx_]
+                ih2 = indh[mid_idx_:]
+                if len(ih1) == 0:
+                    i2 = ind[mid_idx_:]
+                    vr_ = 1. * v[:mid_]
+                    vr_[:n - mid_] -= v[mid_:]
+                    stack.append((ih2 - mid_, i2, vr_, mid_))
+                elif len(ih2) == 0:
+                    i1 = ind[:mid_idx_]
+                    vl_ = 1. * v[:mid_]
+                    vl_[:n - mid_] += v[mid_:]
+                    stack.append((ih1, i1, vl_, mid_))
+                else:
+                    i1 = ind[:mid_idx_]
+                    i2 = ind[mid_idx_:]
+                    vl_ = 1. * v[:mid_]
+                    vl_[:n - mid_] += v[mid_:]
+                    vr_ = 1. * v[:mid_]
+                    vr_[:n - mid_] -= v[mid_:]
+                    stack.append((ih2 - mid_, i2, vr_, mid_))
+                    stack.append((ih1, i1, vl_, mid_))
 
     def _sketch(self, indices_hashed, indices, v, n_padded):
         """
@@ -85,23 +125,23 @@ class SRHTSketcher:
                 self.sa[indices[0]] = v
             return
 
-        left_ = indices_hashed < mid_
-        ih1 = indices_hashed[left_]
-        ih2 = indices_hashed[~left_]
+        mid_idx_ = min(len(indices_hashed), np.searchsorted(indices_hashed, mid_, side='right'))
+        ih1 = indices_hashed[:mid_idx_]
+        ih2 = indices_hashed[mid_idx_:]
 
         if len(ih1) == 0:
-            i2 = indices[~left_]
+            i2 = indices[mid_idx_:]
             vr_ = 1. * v[:mid_]
             vr_[:n-mid_] -= v[mid_:]
             self._sketch(ih2 - mid_, i2, vr_, mid_)
         elif len(ih2) == 0:
-            i1 = indices[left_]
+            i1 = indices[:mid_idx_]
             vl_ = 1. * v[:mid_]
             vl_[:n - mid_] += v[mid_:]
             self._sketch(ih1, i1, vl_, mid_)
         else:
-            i1 = indices[left_]
-            i2 = indices[~left_]
+            i1 = indices[:mid_idx_]
+            i2 = indices[mid_idx_:]
             vl_ = 1. * v[:mid_]
             vl_[:n-mid_] += v[mid_:]
             vr_ = 1. * v[:mid_]
